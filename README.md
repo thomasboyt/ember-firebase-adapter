@@ -33,5 +33,5 @@ And assocations are going to be a trainwreck, probably. So I'm excited for that!
 Create a Firebase DB for testing, then create a `tests/firebase_db.js` file like so:
 
 ```javascript
-window.DB_NAME = "your_db_subdomain_here`;
+window.DB_NAME = "your_db_subdomain_here";
 ```
