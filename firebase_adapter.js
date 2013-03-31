@@ -26,9 +26,6 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
 DS.Firebase.Adapter = DS.Adapter.extend({
   serializer: DS.Firebase.Serializer.create(),
 
-  // todo: make far more granular. possibly per model/controller?
-  live: false,
-
   localLock: false,
 
   refs: {},
@@ -68,9 +65,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       var data = record.serialize();
 
       var ref = this.refs[name].child(record.get("id"));
-      this.localLock = true;
       ref.set(data);
-      this.localLock = false;
 
     }.bind(this));
     store.didSaveRecords(records);
@@ -79,7 +74,8 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   find: function(store, type, id) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
 
-    this.refs[id] = this.refs.root.child(name).child(id);
+    this.refs[name] = this.refs.root.child(name)
+    this.refs[id] = this.refs[name].child(id);
     this.refs[id].once("value", function(snapshot) {
       var data = snapshot.val();
       data.id = id;
@@ -119,21 +115,28 @@ DS.Firebase.Adapter = DS.Adapter.extend({
  
 });
 
-DS.Firebase.Model = DS.Model.extend({
+DS.Firebase.LiveModel = DS.Model.extend({
+  _ref: undefined,
+
   init: function() {
     this._super();
 
-    if (this.get("live") == true) {
-      this.on("didLoad", function() {
-        this.set("_ref", this.store.adapter.refs[this.get("id")]);
+    this.on("didLoad", function() {
+      this.set("_ref", this.store.adapter.refs[this.get("id")]);
 
-        this.get("_ref").on("child_added", function(prop) {
-          if (!this.get(prop.name())) {
-            this.set(prop.name(), prop.val());
-          }
-        }.bind(this));
-      });
-    }
+      this.get("_ref").on("child_added", function(prop) {
+        if (!this.get(prop.name())) {
+          this.set(prop.name(), prop.val());
+        }
+      }.bind(this));
+
+      this.get("_ref").on("child_changed", function(prop) {
+        if (prop.val() != this.get(prop.name())) {
+          console.log("setting");
+          this.set(prop.name(), prop.val());
+        }
+      }.bind(this));
+    });
   }
 });
 

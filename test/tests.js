@@ -38,6 +38,7 @@ module('DS.Firebase.Adapter', {
       firstName: DS.attr('string'),
       lastName: DS.attr('string'),
       twitter: DS.attr('string'),
+      github: DS.attr('string'),
       live: true
     });
     Person.toString = function() {
@@ -102,6 +103,7 @@ test("updateRecord", function() {
   
   person.on("didLoad", function() {
     person.set("twitter", "yehuda_katz");
+    person.set("github", "wycats");
 
     person.on("didUpdate", function() {
       var ref = fb.child("persons").child(person.get("id")).child("twitter");
