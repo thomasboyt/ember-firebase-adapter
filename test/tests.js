@@ -8,7 +8,8 @@ var store, adapter, Person, yehudaId
 var yehudaFixture = {
   firstName: "Yehuda",
   lastName: "Katz",
-  twitter: "wycats"
+  twitter: "wycats",
+  github: null
 }
 
 module('DS.Firebase.Adapter', {
@@ -34,12 +35,11 @@ module('DS.Firebase.Adapter', {
       revision: 12
     });
     
-    Person = DS.Firebase.Model.extend({
+    Person = DS.Firebase.LiveModel.extend({
       firstName: DS.attr('string'),
       lastName: DS.attr('string'),
       twitter: DS.attr('string'),
       github: DS.attr('string'),
-      live: true
     });
     Person.toString = function() {
       return "App.Person";
@@ -60,7 +60,7 @@ test("find", function() {
   });
 });
 
-test("live", function() {
+test("live model", function() {
   stop();
   var person = Person.find(yehudaId);
   
