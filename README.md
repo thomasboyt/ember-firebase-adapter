@@ -33,13 +33,15 @@ Real time collections are only supported when they're "bound" to an entire resou
 
 For real time *models*, subclass `DS.Firebase.LiveModel`. Note that will add any child references added to your model on your Firebase backend, but will only be able to *persist* references that have been defined on your model with `DS.attr()`.
 
-### (theoretical) Associations
+*(real time hasMany associations aren't implemented yet)*
 
-Associations aren't implemented yet, but here's how they will be!
+### Associations
 
 In Firebase, all an "association" is is a child that has more children. Basically, Firebase is a big ol' tree. Either a value is a primative of some sort, and thus is a property on a model in Ember Data, or it has its own children, in which case it's a model of its own.
 
-Thus:
+When you retrieve any kind of resource from Firebase that has child resources, you'll get those in the JSON payload. In Ember Data, these sorts of resources are called *embedded associations.* You need to use a little bit of extra boilerplate to enable an embedded association:
+
+In your models:
 
 ```javascript
 App.Post = DS.Model.create({
@@ -57,14 +59,19 @@ App.Comment = DS.Model.create({
 });
 ```
 
-Will be turned into an *embedded association*. Essentially:
+Here, if comments are *embedded* within in post resources - i.e., represented by `http://myfirebase.firebaseio.com/posts/<post id>/comments/<comment id>` - then when a post is fetched, its comments will be fetched with it, as long as you enable it on the adapter like this:
 
 ```javascript
-var post = firebase.child("post").child(postId);
-var comment = post.child("comments").child(commentId);
+
+var MyAdapter = DS.Firebase.Adapter;
+MyAdapter.map("App.Post", {
+  comments: {embedded: 'always'}
+});
 ```
 
-But what if you want *relational associations*? I dunno yet.
+Now, when you load a post, its comments will be loaded with it. Note that when you add or update a comment on a post, when you commit, Ember will actually save the *Post* resource back to the server. 
+
+But what if you want *relational associations*? I haven't tested it, yet, so I can't document it, but *theoretically these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
 
 ## Implemented
 
@@ -74,6 +81,10 @@ But what if you want *relational associations*? I dunno yet.
 * `findAll()`
 * `createRecord()`
 * `updateRecord()`
+
+### Associations
+
+* hasMany/belongsTo
 
 ### Live Updating
 
@@ -88,9 +99,9 @@ But what if you want *relational associations*? I dunno yet.
 
 ## Todo
 
-Literally just about everything. I mean assocations, most live updating, etc. Oh, and error handling. Dear lord, error handling.
+Literally just about everything.
 
-And assocations are going to be a trainwreck, probably. So I'm excited for that!
+Like error handling. There is no error handling right now. Gah.
 
 ## Tests
 
