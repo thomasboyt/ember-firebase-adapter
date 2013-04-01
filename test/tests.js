@@ -77,14 +77,9 @@ test("find", function() {
   person = Person.find(yehudaId);
   person.on("didLoad", function() {
     deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
-    var projects = person.get("projects");
-    //console.log(projects.objectAt(0).get("name"));
-    equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records can be loaded.");
+    projects = person.get("projects");
+    equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records are loaded automatically.");
     start();
-    /*projects.objectAt(0).on("didLoad", function(p) {
-      equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records can be loaded.");
-      start();
-    });*/
   });
 });
 

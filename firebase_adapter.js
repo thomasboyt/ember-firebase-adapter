@@ -12,17 +12,23 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     this._super(loader, this.rootJSON(json, type, 'pluralize'), type, records);    
   },
 
-  extractHasMany: function(type, hash, key) {
-    /*var ids = [];
-    for (id in hash[key]) ids.push(id);
-    return ids;*/
+  extractEmbeddedHasMany: function(loader, relationship, array, parent, prematerialized) { 
+    var objs = [];
 
-   return hash[key]
+    var match;
+    Ember.get(relationship.type, "relationshipsByName").forEach(function(name, relation) {
+      if (relation.kind == "belongsTo" && relation.type == relationship.parentType)
+        match = name;
+    });
+    for (key in array) {
+     var obj = Ember.copy(array[key]);
+     obj.id = key;
+     obj[match] = parent.id;
+     objs.push(obj);
+    };
+
+    this._super(loader, relationship, objs, parent, prematerialized);
   },
-
-  /*materializeHasMany: function(name, record, hash, relationship) {
-    console.log(arguments);
-  },*/
 
   rootJSON: function(json, type, pluralize) {
     var root = this.rootForType(type);
@@ -33,20 +39,28 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
   },
 
   addHasMany: function(hash, record, key, relationship) {
+    var type = record.constructor;
     var name = relationship.key;
-    var manyArray = record.get(name);
-    var ref = record.getRef();
+    var manyArray, embeddedType;
 
+    // If the has-many is not embedded, there is nothing to do.
+    embeddedType = this.embeddedType(type, name);
+    if (embeddedType !== 'always') { return; }
+
+    // Get the DS.ManyArray for the relationship off the record
+    manyArray = record.get(name);
+
+    // Build up the array of serialized records
     var serializedHasMany = {};
-
-    manyArray.forEach(function(childRecord) {
+    manyArray.forEach(function (childRecord) {
       childRecord.getRef(record.get("id"));     // hacky - forces id creation
       serializedHasMany[childRecord.get("id")] = childRecord.serialize();
-    });
+    }, this);
 
+    // Set the appropriate property of the serialized JSON to the
+    // array of serialized embedded records
     hash[key] = serializedHasMany;
-
-  }
+  },
 });
 
 DS.Firebase.Adapter = DS.Adapter.extend({
@@ -63,6 +77,8 @@ DS.Firebase.Adapter = DS.Adapter.extend({
 
     if (!this.url) this.url = "https://" + this.dbName + ".firebaseio.com";
     this.fb = new Firebase(this.url);
+
+    this._super();
   },
 
   createRecords: function(store, type, records) {
@@ -103,58 +119,6 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       this.didFindRecord(store, type, data, id);
     }.bind(this));
   },
-
-  /*findMany: function(store, type, ids, parent) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
-
-    // todo: handle if parent has parent, etc.
-    var ref;
-    if (parent) {
-      var parentName = this.serializer.pluralize(this.serializer.rootForType(parent.constructor));
-
-      ref = parent.getRef().child(name);
-    }
-    else {
-      ref = fb.child(name);
-    }
-
-    for (var i = 0; i<ids.length; i++) {
-      var id = ids[i];
-      var childRef = ref.child(id);
-
-      var results = [];
-
-      childRef.once("value", function(snapshot) {
-        var data = snapshot.val();
-        data.id = snapshot.name();
-
-        if (parent) {
-          // add id of parent
-          var key = this.serializer.rootForType(parent.constructor);
-          data[key] = parent.get("id");
-        }
-        
-        results.push(data);
-
-        if (results.length == ids.length) {
-          this.didFindMany(store, type, results);
-        }
-        
-      }.bind(this));
-    }
-  },*/
-
-  /*findHasMany: function(store, parent, relation, children) {
-    // there is no "findHasMany" needed - just load the children
-    for (key in children) {
-      var id = key;
-      var ids = Object.keys(children);
-      var data = children[key];
-      data.person = parent.get("id");
-    };
-    console.log("doing findmany");
-    this.didFindMany(store, relation.type, data);
-  },*/
 
   findAll: function(store, type) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
@@ -236,6 +200,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
     this._super();
 
     this.on("didLoad", function() {
+      console.log("didLoad " + this.constructor);
       var ref = this.getRef();
 
       ref.on("child_added", function(prop) {
