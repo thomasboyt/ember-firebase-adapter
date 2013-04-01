@@ -3,12 +3,13 @@ QUnit.config.reorder = false;
 
 var fb = new Firebase("https://" + window.DB_NAME + ".firebaseio.com")
 
-var store, adapter, Person, yehudaId
+var store, adapter, Person, Project, yehudaId
 
 var yehudaFixture = {
   firstName: "Yehuda",
   lastName: "Katz",
-  twitter: "wycats"
+  twitter: "wycats",
+  github: null,
 }
 
 module('DS.Firebase.Adapter', {
@@ -18,13 +19,38 @@ module('DS.Firebase.Adapter', {
 
     // People fixture tests lists
     var persons = fb.child("persons");
-    yehudaId = persons.push(yehudaFixture).name();
+    var yehuda = persons.push(yehudaFixture);
+    yehuda.child("projects").push({name: "Rack::Offline"});
+    yehuda.child("projects").push({name: "emberjs"});
+    
+    yehudaId = yehuda.name();
 
-    persons.push({
+    var tom = persons.push({
       firstName: "Tom",
       lastName: "Dale",
-      twitter: "tomdale"
+      twitter: "tomdale",
     });
+
+    Person = DS.Firebase.LiveModel.extend({
+      firstName: DS.attr('string'),
+      lastName: DS.attr('string'),
+      twitter: DS.attr('string'),
+      github: DS.attr('string'),
+
+      projects: DS.hasMany('Project')
+    });
+    Person.toString = function() {
+      return "App.Person";
+    };
+
+    Project = DS.Firebase.LiveModel.extend({
+      name: DS.attr('string'),
+      belongsTo: Person
+    });
+
+    Project.toString = function() {
+      return "App.Project";
+    };
 
     adapter = DS.Firebase.Adapter.create({
       dbName: window.DB_NAME
@@ -33,17 +59,6 @@ module('DS.Firebase.Adapter', {
       adapter: adapter,
       revision: 12
     });
-    
-    Person = DS.Firebase.Model.extend({
-      firstName: DS.attr('string'),
-      lastName: DS.attr('string'),
-      twitter: DS.attr('string'),
-      github: DS.attr('string'),
-      live: true
-    });
-    Person.toString = function() {
-      return "App.Person";
-    }
   },
   teardown: function() {
     adapter.destroy();
@@ -56,6 +71,9 @@ test("find", function() {
   var person = Person.find(yehudaId);
   person.on("didLoad", function() {
     deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
+    Ember.run.later(function() {
+      console.log(person.get("projects"));
+    }, 400);
     start();
   });
 });

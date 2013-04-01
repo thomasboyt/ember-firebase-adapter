@@ -14,6 +14,13 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     this._super(loader, this.rootJSON(json, type, 'pluralize'), type, records);    
   },
 
+  extractHasMany: function(type, hash, key) {
+    var ids = [];
+    for (id in hash[key]) ids.push(id);
+    return ids;
+   //return hash[key];
+  },
+
   rootJSON: function(json, type, pluralize) {
     var root = this.rootForType(type);
     if (pluralize == 'pluralize') { root = this.pluralize(root); }
@@ -74,7 +81,9 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   find: function(store, type, id) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
 
-    this.refs[name] = this.refs.root.child(name)
+    if (!this.refs[name]) this.refs[name] = this.refs.root.child(name)
+
+    console.log(id);
     this.refs[id] = this.refs[name].child(id);
     this.refs[id].once("value", function(snapshot) {
       var data = snapshot.val();
@@ -84,6 +93,36 @@ DS.Firebase.Adapter = DS.Adapter.extend({
     }.bind(this));
   },
 
+  /*findHasMany: function(store, parent, relationship, children) {
+    console.log(parent);
+    console.log(relationship);
+    console.log(children);
+
+    var parentName = this.serializer.pluralize(this.serializer.rootForType(relationship.parentType));
+    var name = this.serializer.pluralize(this.serializer.rootForType(relationship.type));
+
+    var children = this.refs[parentName].child(parent.get("id")).child(name);
+
+    children.once("value", function(snapshot) {
+      results = [];
+      snapshot.forEach(function(child) {
+        var data = child.val();
+        data.id = child.name();
+        results.push(Ember.copy(data));
+        this.refs[data.id] = child.ref();
+      }.bind(this));
+
+      this.didFindHasMany(store, parent, relationship, children, results);
+    }.bind(this));
+
+  },*/
+
+  //didFindHasMany: function(store, parent, relationship, children, results) {
+    //var loader = DS.loaderFor(store);
+    //var serializer = this.get("serializer");
+
+  //},
+ 
   findAll: function(store, type) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
     
@@ -125,7 +164,8 @@ DS.Firebase.LiveModel = DS.Model.extend({
       this.set("_ref", this.store.adapter.refs[this.get("id")]);
 
       this.get("_ref").on("child_added", function(prop) {
-        if (!this.get(prop.name())) {
+        if (this._data.attributes.hasOwnProperty(prop.name())) {
+          console.log("adding prop " + prop.name()); 
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
