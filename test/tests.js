@@ -68,6 +68,7 @@ module('DS.Firebase.Adapter', {
   },
   teardown: function() {
     // wait until after embedded bindings are done
+    Ember.run.sync();
     Ember.run(function() {
       adapter.destroy();
       store.destroy();
@@ -83,6 +84,21 @@ test("find", function() {
     projects = person.get("projects");
     equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records are loaded automatically.");
     start();
+  });
+});
+
+test("findAll", function() {
+  stop();
+  var people = Person.find();
+
+  people.addObserver("length", function() {
+    if (people.get("length") == 2) {
+      ok(true, "Found two entries");
+
+      // todo: test live additions
+      equal(people.objectAt(0).get("firstName"), "Yehuda", "First entry contains data");
+      start();
+    }
   });
 });
 
@@ -114,7 +130,6 @@ test("createRecord", function() {
   });
 
   person.on("didCreate", function() {
-    console.log("didCreate");
     ok(person.get("id"), "Person model has an id after being saved.");
 
     var project = Project.createRecord({
@@ -123,9 +138,14 @@ test("createRecord", function() {
     });
 
     person.on("didUpdate", function() {
-      ok(true, "TODO: Some kind of test for association creation");
-      start();
-    });
+      fb.child("persons").child(person.get("id")).child("projects").child(project.get("id")).child("name").once("value", function(snap) {
+        console.log(snap.ref().toString());
+        var val = snap.val();
+        equal(val, project.get("name"),
+              "Created hasMany association on existing record.");
+        start();
+      }.bind(this));
+    }.bind(this));
 
     store.commit();
   });

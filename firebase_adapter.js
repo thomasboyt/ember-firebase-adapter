@@ -118,30 +118,26 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   },
 
   findAll: function(store, type) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
+    var ref = this._getRefForType(type);
     
-    this.refs[name] = this.refs.root.child(name);
-    this.refs[name].once("value", function(snapshot) {
+    ref.once("value", function(snapshot) {
       var results = [];
       snapshot.forEach(function(child) {
         var data = child.val();
         data.id = child.name();
         results.push(Ember.copy(data));
-
-        this.refs[data.id] = child.ref();
       }.bind(this));
       
       this.didFindAll(store, type, results);
 
-      this.refs[name].on("child_added", function(child) {
+      /*ref.on("child_added", function(child) {
         if (!this.localLock) {
           var id = child.name()
           var data = child.val()
           data.id = id;
-          this.refs[id] = child.ref();
           this.didFindMany(store, type, [data]);
         }
-      }.bind(this));
+      }.bind(this));*/
 
     }.bind(this));
   },
@@ -149,7 +145,6 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   _getRefForType: function(type, record) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
 
-    // TODO: Belongs to
     return this.fb.child(name);
   }
 
@@ -210,8 +205,5 @@ DS.Firebase.LiveModel = DS.Model.extend({
     }.bind(this));
   },
 
-  /*materializeHasMany: function(name, ids) {
-    this._super();
-  }*/
 });
 
