@@ -3,13 +3,13 @@ QUnit.config.reorder = false;
 
 var fb = new Firebase("https://" + window.DB_NAME + ".firebaseio.com")
 
-var store, adapter, Person, yehudaId
+var store, adapter, Person, Project, yehudaId
 
 var yehudaFixture = {
   firstName: "Yehuda",
   lastName: "Katz",
   twitter: "wycats",
-  github: null
+  github: null,
 }
 
 module('DS.Firebase.Adapter', {
@@ -19,35 +19,66 @@ module('DS.Firebase.Adapter', {
 
     // People fixture tests lists
     var persons = fb.child("persons");
-    yehudaId = persons.push(yehudaFixture).name();
+    var yehuda = persons.push(yehudaFixture);
+    yehuda.child("projects").push({name: "Rack::Offline"});
+    yehuda.child("projects").push({name: "emberjs"});
+    yehuda.child("projects").push({name: "ember-data"});
+    
+    yehudaId = yehuda.name();
 
-    persons.push({
+    var tom = persons.push({
       firstName: "Tom",
       lastName: "Dale",
-      twitter: "tomdale"
+      twitter: "tomdale",
     });
 
-    adapter = DS.Firebase.Adapter.create({
-      dbName: window.DB_NAME
-    });
-    store = DS.Store.create({
-      adapter: adapter,
-      revision: 12
-    });
-    
     Person = DS.Firebase.LiveModel.extend({
       firstName: DS.attr('string'),
       lastName: DS.attr('string'),
       twitter: DS.attr('string'),
       github: DS.attr('string'),
+
+      projects: DS.hasMany('Project', {embedded: "always"})
     });
     Person.toString = function() {
       return "App.Person";
-    }
+    };
+
+    Project = DS.Firebase.LiveModel.extend({
+      name: DS.attr('string'),
+      person: DS.belongsTo(Person)
+    });
+
+    Project.toString = function() {
+      return "App.Project";
+    };
+
+    var FBAdapter = DS.Firebase.Adapter;
+    FBAdapter.map(Person, {
+      projects: { embedded: 'always' }
+    });
+    adapter = FBAdapter.create({
+      dbName: window.DB_NAME
+    });
+
+    store = DS.Store.create({
+      adapter: adapter,
+      revision: 12
+    });
+
+    // goofy: seems to do some sort of forced-load that kills some weird conditions in the tests.
+    fb.child("persons").on("value", function() {});
   },
   teardown: function() {
-    adapter.destroy();
-    store.destroy();
+    stop();
+    // wait until after embedded bindings are done
+    fb.child("persons").off("child_added");
+    Ember.run.sync();
+    Ember.run(function() {
+      adapter.destroy();
+      store.destroy();
+      start();
+    });
   }
 });
 
@@ -56,11 +87,27 @@ test("find", function() {
   var person = Person.find(yehudaId);
   person.on("didLoad", function() {
     deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
+    projects = person.get("projects");
+    equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records are loaded automatically.");
     start();
   });
 });
 
-test("live model", function() {
+test("findAll", function() {
+  stop();
+  var people = Person.find();
+
+  people.addObserver("length", function() {
+    if (people.get("length") == 2) {
+      ok(true, "Found two entries");
+
+      equal(people.objectAt(0).get("firstName"), "Yehuda", "First entry contains data");
+      start();
+    }
+  });
+});
+
+test("live", function() {
   stop();
   var person = Person.find(yehudaId);
   
@@ -82,18 +129,32 @@ test("live model", function() {
 test("createRecord", function() {
   stop();
   var person = Person.createRecord({
-    firstName: "Romy",
-    lastName: "Hong",
-    twitter: "RomyOnRuby"
+    firstName: "Ryan",
+    lastName: "Florence",
+    twitter: "ryanflorence",
   });
 
   person.on("didCreate", function() {
     ok(person.get("id"), "Person model has an id after being saved.");
-    start();
+
+    var project = Project.createRecord({
+      name: "Ember LocalStorage Adapter",
+      person: person
+    });
+
+    person.on("didUpdate", function() {
+      fb.child("persons").child(person.get("id")).child("projects").child(project.get("id")).once("child_added", function(snap) {
+        var val = snap.val();
+        equal(val, project.get("name"),
+              "Created hasMany association on existing record.");
+        start();
+      }.bind(this));
+    }.bind(this));
+
+    store.commit();
   });
 
   store.commit();
-
 });
 
 test("updateRecord", function() {

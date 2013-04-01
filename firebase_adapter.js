@@ -3,8 +3,6 @@
 
 DS.Firebase = {};
 
-// via @rpflorence's localstorage adapter
-// works around lack of root element when passing array
 DS.Firebase.Serializer = DS.JSONSerializer.extend({
   extract: function(loader, json, type, record) {
     this._super(loader, this.rootJSON(json, type), type, record);
@@ -14,13 +12,58 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     this._super(loader, this.rootJSON(json, type, 'pluralize'), type, records);    
   },
 
+  extractEmbeddedHasMany: function(loader, relationship, array, parent, prematerialized) { 
+    var objs = [];
+
+    // find belongsTo key that matches the relationship
+    var match;
+    Ember.get(relationship.type, "relationshipsByName").forEach(function(name, relation) {
+      if (relation.kind == "belongsTo" && relation.type == relationship.parentType)
+        match = name;
+    });
+
+    // turn {id: resource} -> [resource] with id property
+    for (key in array) {
+     var obj = Ember.copy(array[key]);
+     obj.id = key;
+     obj[match] = parent.id;
+     objs.push(obj);
+    };
+
+    this._super(loader, relationship, objs, parent, prematerialized);
+  },
+
   rootJSON: function(json, type, pluralize) {
     var root = this.rootForType(type);
     if (pluralize == 'pluralize') { root = this.pluralize(root); }
     var rootedJSON = {};
     rootedJSON[root] = json;
     return rootedJSON;
-  }
+  },
+
+  addHasMany: function(hash, record, key, relationship) {
+    var type = record.constructor;
+    var name = relationship.key;
+    var manyArray, embeddedType;
+
+    // If the has-many is not embedded, there is nothing to do.
+    embeddedType = this.embeddedType(type, name);
+    if (embeddedType !== 'always') { return; }
+
+    // Get the DS.ManyArray for the relationship off the record
+    manyArray = record.get(name);
+
+    // Build up the array of serialized records
+    var serializedHasMany = {};
+    manyArray.forEach(function (childRecord) {
+      childRecord.getRef(record.get("id"));     // hacky - forces id creation
+      serializedHasMany[childRecord.get("id")] = childRecord.serialize();
+    }, this);
+
+    // Set the appropriate property of the serialized JSON to the
+    // array of serialized embedded records
+    hash[key] = serializedHasMany;
+  },
 });
 
 DS.Firebase.Adapter = DS.Adapter.extend({
@@ -28,7 +71,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
 
   localLock: false,
 
-  refs: {},
+  fb: undefined,
 
   init: function() {
     if (!this.dbName && !this.url) {
@@ -36,47 +79,40 @@ DS.Firebase.Adapter = DS.Adapter.extend({
     }
 
     if (!this.url) this.url = "https://" + this.dbName + ".firebaseio.com";
-    this.refs.root = new Firebase(this.url);
+    this.fb = new Firebase(this.url);
+
+    this._super();
   },
 
-
   createRecords: function(store, type, records) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
     records.forEach(function(record) {
+      var ref = record.getRef();
       var data = record.serialize();
 
       // goofy. causes child_added callback to ignore local additions, 
       // preventing duplicate items
       this.localLock = true;
-      if (!this.refs[name]) this.refs[name] = this.refs.root.child(name);
-      var ref = this.refs[name].push(data);
+      var newRef = ref.set(data);
       this.localLock = false;
       
-      record.set("id", ref.name())
-      this.refs[ref.name()] = ref;
-
+      //record.set("id", newRef.name())
     }.bind(this));
     store.didSaveRecords(records);
   },
 
   updateRecords: function(store, type, records) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
     records.forEach(function(record) {
+      var ref = record.getRef();
       var data = record.serialize();
 
-      var ref = this.refs[name].child(record.get("id"));
       ref.set(data);
-
     }.bind(this));
     store.didSaveRecords(records);
   },
 
   find: function(store, type, id) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
-
-    this.refs[name] = this.refs.root.child(name)
-    this.refs[id] = this.refs[name].child(id);
-    this.refs[id].once("value", function(snapshot) {
+    var ref = this._getRefForType(type).child(id);
+    ref.once("value", function(snapshot) {
       var data = snapshot.val();
       data.id = id;
       
@@ -85,58 +121,89 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   },
 
   findAll: function(store, type) {
-    var name = this.serializer.pluralize(this.serializer.rootForType(type));
+    var ref = this._getRefForType(type);
     
-    this.refs[name] = this.refs.root.child(name);
-    this.refs[name].once("value", function(snapshot) {
+    ref.once("value", function(snapshot) {
       var results = [];
       snapshot.forEach(function(child) {
         var data = child.val();
         data.id = child.name();
         results.push(Ember.copy(data));
-
-        this.refs[data.id] = child.ref();
       }.bind(this));
       
       this.didFindAll(store, type, results);
 
-      this.refs[name].on("child_added", function(child) {
+      ref.on("child_added", function(child) {
         if (!this.localLock) {
-          var id = child.name()
           var data = child.val()
-          data.id = id;
-          this.refs[id] = child.ref();
+          data.id = child.name();
           this.didFindMany(store, type, [data]);
         }
       }.bind(this));
 
     }.bind(this));
   },
- 
+
+  _getRefForType: function(type, record) {
+    var name = this.serializer.pluralize(this.serializer.rootForType(type));
+
+    return this.fb.child(name);
+  }
+
 });
 
 DS.Firebase.LiveModel = DS.Model.extend({
-  _ref: undefined,
+  getRef: function(collection) {
+    var adapter = this.store.adapter;
+    var serializer = adapter.serializer;
+
+    var name = serializer.pluralize(serializer.rootForType(this.constructor));
+
+    var parentRef;
+
+    // find belongsTo assocations
+    var key;
+    Ember.get(this.constructor, 'relationshipsByName')
+      .forEach(function(rkey, relation) {
+        if (relation.kind == "belongsTo" && relation.parentType == this.constructor)
+          key = rkey;
+      }.bind(this));
+
+    if (key) {
+      parentRef = this.get(key).getRef();
+    }
+    else {
+      parentRef = adapter.fb;
+    }
+
+    if (!this.get("id")) {
+      var newRef = parentRef.child(name).push();
+      this.set("id", newRef.name());
+      return newRef;
+    }
+    else
+      return parentRef.child(name).child(this.get("id"));
+  },
 
   init: function() {
     this._super();
 
     this.on("didLoad", function() {
-      this.set("_ref", this.store.adapter.refs[this.get("id")]);
+      var ref = this.getRef();
 
-      this.get("_ref").on("child_added", function(prop) {
-        if (!this.get(prop.name())) {
+      ref.on("child_added", function(prop) {
+        if (this._data.attributes.hasOwnProperty(prop.name()) && !(this.get(prop.name()))) {
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
 
-      this.get("_ref").on("child_changed", function(prop) {
+      ref.on("child_changed", function(prop) {
         if (prop.val() != this.get(prop.name())) {
-          console.log("setting");
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
-    });
-  }
+    }.bind(this));
+  },
+
 });
 
