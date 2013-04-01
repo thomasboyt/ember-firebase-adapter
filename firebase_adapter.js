@@ -15,11 +15,14 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
   extractEmbeddedHasMany: function(loader, relationship, array, parent, prematerialized) { 
     var objs = [];
 
+    // find belongsTo key that matches the relationship
     var match;
     Ember.get(relationship.type, "relationshipsByName").forEach(function(name, relation) {
       if (relation.kind == "belongsTo" && relation.type == relationship.parentType)
         match = name;
     });
+
+    // turn {id: resource} -> [resource] with id property
     for (key in array) {
      var obj = Ember.copy(array[key]);
      obj.id = key;
@@ -132,9 +135,8 @@ DS.Firebase.Adapter = DS.Adapter.extend({
 
       ref.on("child_added", function(child) {
         if (!this.localLock) {
-          var id = child.name()
           var data = child.val()
-          data.id = id;
+          data.id = child.name();
           this.didFindMany(store, type, [data]);
         }
       }.bind(this));

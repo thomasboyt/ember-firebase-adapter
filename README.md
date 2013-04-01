@@ -31,7 +31,7 @@ For real time *collections* - that is, an array of your models at a particular r
 
 Real time collections are only supported when they're "bound" to an entire resource - that is, doing a find with any kind of query (including a blank one) will create a static collection.
 
-For real time *models*, subclass `DS.Firebase.LiveModel`. Note that will add any child references added to your model on your Firebase backend, but will only be able to *persist* references that have been defined on your model with `DS.attr()`.
+For real time *models*, subclass `DS.Firebase.LiveModel`. Right now, this means that any changes to model properties on the server side will be updated on the model. Note that this only works for *defined attributes* - you can't just add arbitrary attributes that weren't defined on the model. 
 
 *(real time hasMany associations aren't implemented yet)*
 
