@@ -99,12 +99,9 @@ DS.Firebase.Adapter = DS.Adapter.extend({
 
   updateRecords: function(store, type, records) {
     records.forEach(function(record) {
-      console.log(record);
       var ref = record.getRef();
       var data = record.serialize();
-      console.log(data);
 
-      console.log(ref.toString());
       ref.set(data);
     }.bind(this));
     store.didSaveRecords(records);
@@ -175,12 +172,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
           key = rkey;
       }.bind(this));
 
-    //console.log(key);
-    //console.log(this.constructor);
-    //console.log("---");
     if (key) {
-      console.log(key);
-      console.log(this.get(key));
       parentRef = this.get(key).getRef();
     }
     else {
@@ -200,7 +192,6 @@ DS.Firebase.LiveModel = DS.Model.extend({
     this._super();
 
     this.on("didLoad", function() {
-      console.log("didLoad " + this.constructor);
       var ref = this.getRef();
 
       ref.on("child_added", function(prop) {

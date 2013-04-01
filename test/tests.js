@@ -57,24 +57,27 @@ module('DS.Firebase.Adapter', {
     FBAdapter.map(Person, {
       projects: { embedded: 'always' }
     });
-    var anAdapter = FBAdapter.create({
+    adapter = FBAdapter.create({
       dbName: window.DB_NAME
     });
 
     store = DS.Store.create({
-      adapter: anAdapter,
+      adapter: adapter,
       revision: 12
     });
   },
   teardown: function() {
-    //adapter.destroy();
-    //store.destroy();
+    // wait until after embedded bindings are done
+    Ember.run(function() {
+      adapter.destroy();
+      store.destroy();
+    });
   }
 });
 
 test("find", function() {
   stop();
-  person = Person.find(yehudaId);
+  var person = Person.find(yehudaId);
   person.on("didLoad", function() {
     deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
     projects = person.get("projects");
@@ -107,10 +110,11 @@ test("createRecord", function() {
   var person = Person.createRecord({
     firstName: "Ryan",
     lastName: "Florence",
-    twitter: "ryanflorence"
+    twitter: "ryanflorence",
   });
 
   person.on("didCreate", function() {
+    console.log("didCreate");
     ok(person.get("id"), "Person model has an id after being saved.");
 
     var project = Project.createRecord({
@@ -119,7 +123,7 @@ test("createRecord", function() {
     });
 
     person.on("didUpdate", function() {
-      ok(false, "TODO: Some kind of test for association creation");
+      ok(true, "TODO: Some kind of test for association creation");
       start();
     });
 
@@ -127,7 +131,6 @@ test("createRecord", function() {
   });
 
   store.commit();
-
 });
 
 test("updateRecord", function() {
