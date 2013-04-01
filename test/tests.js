@@ -22,6 +22,7 @@ module('DS.Firebase.Adapter', {
     var yehuda = persons.push(yehudaFixture);
     yehuda.child("projects").push({name: "Rack::Offline"});
     yehuda.child("projects").push({name: "emberjs"});
+    yehuda.child("projects").push({name: "ember-data"});
     
     yehudaId = yehuda.name();
 
@@ -37,7 +38,7 @@ module('DS.Firebase.Adapter', {
       twitter: DS.attr('string'),
       github: DS.attr('string'),
 
-      projects: DS.hasMany('Project')
+      projects: DS.hasMany('Project', {embedded: "always"})
     });
     Person.toString = function() {
       return "App.Person";
@@ -45,36 +46,45 @@ module('DS.Firebase.Adapter', {
 
     Project = DS.Firebase.LiveModel.extend({
       name: DS.attr('string'),
-      belongsTo: Person
+      person: DS.belongsTo(Person)
     });
 
     Project.toString = function() {
       return "App.Project";
     };
 
-    adapter = DS.Firebase.Adapter.create({
+    var FBAdapter = DS.Firebase.Adapter;
+    FBAdapter.map(Person, {
+      projects: { embedded: 'always' }
+    });
+    var anAdapter = FBAdapter.create({
       dbName: window.DB_NAME
     });
+
     store = DS.Store.create({
-      adapter: adapter,
+      adapter: anAdapter,
       revision: 12
     });
   },
   teardown: function() {
-    adapter.destroy();
-    store.destroy();
+    //adapter.destroy();
+    //store.destroy();
   }
 });
 
 test("find", function() {
   stop();
-  var person = Person.find(yehudaId);
+  person = Person.find(yehudaId);
   person.on("didLoad", function() {
     deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
-    Ember.run.later(function() {
-      console.log(person.get("projects"));
-    }, 400);
+    var projects = person.get("projects");
+    //console.log(projects.objectAt(0).get("name"));
+    equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records can be loaded.");
     start();
+    /*projects.objectAt(0).on("didLoad", function(p) {
+      equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records can be loaded.");
+      start();
+    });*/
   });
 });
 
@@ -100,14 +110,25 @@ test("live", function() {
 test("createRecord", function() {
   stop();
   var person = Person.createRecord({
-    firstName: "Romy",
-    lastName: "Hong",
-    twitter: "RomyOnRuby"
+    firstName: "Ryan",
+    lastName: "Florence",
+    twitter: "ryanflorence"
   });
 
   person.on("didCreate", function() {
     ok(person.get("id"), "Person model has an id after being saved.");
-    start();
+
+    var project = Project.createRecord({
+      name: "Ember LocalStorage Adapter",
+      person: person
+    });
+
+    person.on("didUpdate", function() {
+      ok(false, "TODO: Some kind of test for association creation");
+      start();
+    });
+
+    store.commit();
   });
 
   store.commit();
@@ -120,6 +141,7 @@ test("updateRecord", function() {
   var person = Person.find(yehudaId);
   
   person.on("didLoad", function() {
+    console.log(this.get("projects").objectAt(0).get("name"));
     person.set("twitter", "yehuda_katz");
     person.set("github", "wycats");
 
