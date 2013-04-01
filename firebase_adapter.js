@@ -130,14 +130,14 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       
       this.didFindAll(store, type, results);
 
-      /*ref.on("child_added", function(child) {
+      ref.on("child_added", function(child) {
         if (!this.localLock) {
           var id = child.name()
           var data = child.val()
           data.id = id;
           this.didFindMany(store, type, [data]);
         }
-      }.bind(this));*/
+      }.bind(this));
 
     }.bind(this));
   },
@@ -191,14 +191,12 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
       ref.on("child_added", function(prop) {
         if (this._data.attributes.hasOwnProperty(prop.name()) && !(this.get(prop.name()))) {
-          console.log("adding prop " + prop.name()); 
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
 
       ref.on("child_changed", function(prop) {
         if (prop.val() != this.get(prop.name())) {
-          console.log("setting");
           this.set(prop.name(), prop.val());
         }
       }.bind(this));

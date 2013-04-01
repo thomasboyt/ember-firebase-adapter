@@ -65,13 +65,19 @@ module('DS.Firebase.Adapter', {
       adapter: adapter,
       revision: 12
     });
+
+    // goofy: seems to do some sort of forced-load that kills some weird conditions in the tests.
+    fb.child("persons").on("value", function() {});
   },
   teardown: function() {
+    stop();
     // wait until after embedded bindings are done
+    fb.child("persons").off("child_added");
     Ember.run.sync();
     Ember.run(function() {
       adapter.destroy();
       store.destroy();
+      start();
     });
   }
 });
@@ -95,7 +101,6 @@ test("findAll", function() {
     if (people.get("length") == 2) {
       ok(true, "Found two entries");
 
-      // todo: test live additions
       equal(people.objectAt(0).get("firstName"), "Yehuda", "First entry contains data");
       start();
     }
@@ -138,8 +143,7 @@ test("createRecord", function() {
     });
 
     person.on("didUpdate", function() {
-      fb.child("persons").child(person.get("id")).child("projects").child(project.get("id")).child("name").once("value", function(snap) {
-        console.log(snap.ref().toString());
+      fb.child("persons").child(person.get("id")).child("projects").child(project.get("id")).once("child_added", function(snap) {
         var val = snap.val();
         equal(val, project.get("name"),
               "Created hasMany association on existing record.");
@@ -159,7 +163,6 @@ test("updateRecord", function() {
   var person = Person.find(yehudaId);
   
   person.on("didLoad", function() {
-    console.log(this.get("projects").objectAt(0).get("name"));
     person.set("twitter", "yehuda_katz");
     person.set("github", "wycats");
 

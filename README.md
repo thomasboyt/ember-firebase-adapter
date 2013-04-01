@@ -71,7 +71,7 @@ MyAdapter.map("App.Post", {
 
 Now, when you load a post, its comments will be loaded with it. Note that when you add or update a comment on a post, when you commit, Ember will actually save the *Post* resource back to the server. 
 
-But what if you want *relational associations*? I haven't tested it, yet, so I can't document it, but *theoretically these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+But what if you want *relational associations*? I haven't tested it, yet, so I can't document it, but *theoretically* these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
 
 ## Implemented
 
@@ -95,7 +95,7 @@ But what if you want *relational associations*? I haven't tested it, yet, so I c
 #### Models
 
 * `child_added`
-* `child_changed
+* `child_changed`
 
 ## Todo
 
