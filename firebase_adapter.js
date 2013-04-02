@@ -246,7 +246,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
               if (match) data[match] = this.get("id");
 
-              this.store.adapter.didFindMany(this.store, relationship.type, [data]);
+              this.store.adapter.didFindRecord(this.store, relationship.type, data, id);
             }.bind(this));
           }
         }
