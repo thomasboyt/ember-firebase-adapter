@@ -33,6 +33,10 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     this._super(loader, relationship, objs, parent, prematerialized);
   },
 
+  extractBelongsTo: function(loader, relationship, array, parent, prematerialized) {
+    console.log("HI");
+  },
+
   rootJSON: function(json, type, pluralize) {
     var root = this.rootForType(type);
     if (pluralize == 'pluralize') { root = this.pluralize(root); }
@@ -207,13 +211,44 @@ DS.Firebase.LiveModel = DS.Model.extend({
       // child object (or array of ids of child objects)
       ref.on("child_added", function(prop) {
         if (this._data.attributes.hasOwnProperty(prop.name()) && !(this.get(prop.name()))) {
+          console.log("child added " + prop.name());
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
 
       ref.on("child_changed", function(prop) {
         if (this._data.attributes.hasOwnProperty(prop.name()) && prop.val() != this.get(prop.name())) {
+          console.log("child changed " + prop.name());
           this.set(prop.name(), prop.val());
+        }
+
+      }.bind(this));
+
+      var resourceName = this.store.adapter.serializer.rootForType(this.constructor);
+
+      this.get("constructor.relationshipsByName").forEach(function(name, relationship) {
+        if (relationship.kind == "hasMany") {
+          if (relationship.options.embedded == "always") {
+            // this... could work??
+            ref.child(relationship.key).on("child_added", function(snapshot) {
+              var id = snapshot.name();
+
+              var data = snapshot.val();
+              var id = snapshot.name();
+              data.id = id
+              
+              // find belongsTo key that matches the relationship
+              var match;
+              Ember.get(relationship.type, "relationshipsByName").forEach(function(name, relation) {
+                if (relation.kind == "belongsTo" && relation.type == relationship.parentType)
+                  match = name;
+              });
+
+              if (match) data[match] = this.get("id");
+
+              this.store.adapter.didFindMany(this.store, relationship.type, [data]);
+            }.bind(this));
+          }
         }
       }.bind(this));
     }.bind(this));

@@ -178,4 +178,20 @@ test("updateRecord", function() {
   });
 });
 
+test("Live Relationships", function() {
+  stop();
+
+  var person = Person.find(yehudaId);
+  
+  person.on("didLoad", function() {
+    setTimeout(function() {
+      fb.child("persons").child(yehudaId).child("projects").push({name: "minispade"});
+      setTimeout(function() {
+        console.log(person.get("projects.length"));
+      }, 1000);
+    }, 200);
+  });
+
+});
+
 QUnit.start();
