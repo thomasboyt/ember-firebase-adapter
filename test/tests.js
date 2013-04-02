@@ -46,7 +46,7 @@ module('DS.Firebase.Adapter', {
 
     Project = DS.Firebase.LiveModel.extend({
       name: DS.attr('string'),
-      person: DS.belongsTo(Person)
+      person: DS.belongsTo('Person')
     });
 
     Project.toString = function() {
@@ -186,9 +186,9 @@ test("Live Relationships", function() {
   person.on("didLoad", function() {
     setTimeout(function() {
       fb.child("persons").child(yehudaId).child("projects").push({name: "minispade"});
-      setTimeout(function() {
-        console.log(person.get("projects.length"));
-      }, 1000);
+      Ember.run.sync();
+      equal(person.get("projects.length"), 4, "Adding a new record on the back-end adds it into the hasMany association");
+      start();
     }, 200);
   });
 

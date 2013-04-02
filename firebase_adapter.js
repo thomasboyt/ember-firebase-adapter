@@ -29,12 +29,7 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
      obj[match] = parent.id;
      objs.push(obj);
     };
-
     this._super(loader, relationship, objs, parent, prematerialized);
-  },
-
-  extractBelongsTo: function(loader, relationship, array, parent, prematerialized) {
-    console.log("HI");
   },
 
   rootJSON: function(json, type, pluralize) {
@@ -229,9 +224,13 @@ DS.Firebase.LiveModel = DS.Model.extend({
       this.get("constructor.relationshipsByName").forEach(function(name, relationship) {
         if (relationship.kind == "hasMany") {
           if (relationship.options.embedded == "always") {
-            // this... could work??
             ref.child(relationship.key).on("child_added", function(snapshot) {
               var id = snapshot.name();
+
+              // todo: likely very inefficient. may be a better way to get
+              // list of ids - see how it's done when loading records
+              var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
+              if (ids.contains(id)) { return; }
 
               var data = snapshot.val();
               var id = snapshot.name();
@@ -244,9 +243,13 @@ DS.Firebase.LiveModel = DS.Model.extend({
                   match = name;
               });
 
-              if (match) data[match] = this.get("id");
+              if(match) data[match] = this;
 
-              this.store.adapter.didFindRecord(this.store, relationship.type, data, id);
+              var rec = relationship.type.createRecord(data);
+
+              // keeps the record from being attempted to be saved back to
+              // the server
+              rec.get('stateManager').send('becameClean');                
             }.bind(this));
           }
         }
