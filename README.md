@@ -1,6 +1,8 @@
-Early beginnings of a Firebase adapter.
+## What? 
 
-## What? Why?
+This is a [Firebase](https://www.firebase.com/) adapter for [Ember Data](https://github.com/emberjs/data).
+
+## Why?
 
 Firebase is powerful because it sort of works as a standard CRUD store, with the unique twist of being able to live update models and collections.
 
@@ -71,7 +73,13 @@ MyAdapter.map("App.Post", {
 
 Now, when you load a post, its comments will be loaded with it. Note that when you add or update a comment on a post, when you commit, Ember will actually save the *Post* resource back to the server. 
 
-But what if you want *relational associations*? I haven't tested it, yet, so I can't document it, but *theoretically* these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+But what if you want *relational* associations? I haven't tested it, yet, so I can't document it, but *theoretically* these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+
+### Other Tips
+
+You can access the Firebase object with `App.store.fb`, if you want to add your own hooks (for example, to [handle presence](https://www.firebase.com/docs/managing-presence.html) or [check authentication](https://www.firebase.com/docs/security-quickstart.html).
+
+[Priorities](https://www.firebase.com/docs/ordered-data.html) aren't implemented, since I haven't figured out a clear way to use them in Ember. If you have any recommendations, feel free to open an issue.
 
 ## Implemented
 

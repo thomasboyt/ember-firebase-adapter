@@ -1,4 +1,4 @@
-// deps: global jquery, global DS, global Firebase
+// deps: global Ember, global DS, global Firebase
 //
 
 DS.Firebase = {};
@@ -41,17 +41,27 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     return rootedJSON;
   },
 
+  // slightly modified from json serializer
   addHasMany: function(hash, record, key, relationship) {
     var type = record.constructor;
     var name = relationship.key;
     var manyArray, embeddedType;
 
-    // If the has-many is not embedded, there is nothing to do.
-    embeddedType = this.embeddedType(type, name);
-    if (embeddedType !== 'always') { return; }
-
     // Get the DS.ManyArray for the relationship off the record
     manyArray = record.get(name);
+
+    embeddedType = this.embeddedType(type, name);
+
+    // if not embedded, just add array of ids
+    if (embeddedType !== 'always') { 
+      var ids = [];
+      manyArray.forEach(function (childRecord) {
+        childRecord.getRef(record.get("id"));     // hacky - forces id creation
+        ids.push(childRecord.get("id"));
+      });
+      hash[key] = ids;
+      return; 
+    }
 
     // Build up the array of serialized records
     var serializedHasMany = {};
@@ -94,8 +104,6 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       this.localLock = true;
       var newRef = ref.set(data);
       this.localLock = false;
-      
-      //record.set("id", newRef.name())
     }.bind(this));
     store.didSaveRecords(records);
   },
@@ -104,7 +112,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
     records.forEach(function(record) {
       var ref = record.getRef();
       var data = record.serialize();
-
+      
       ref.set(data);
     }.bind(this));
     store.didSaveRecords(records);
@@ -113,7 +121,8 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   find: function(store, type, id) {
     var ref = this._getRefForType(type).child(id);
     ref.once("value", function(snapshot) {
-      var data = snapshot.val();
+      // TODO: ew, silent failure.
+      var data = snapshot.val() || {};
       data.id = id;
       
       this.didFindRecord(store, type, data, id);
@@ -144,7 +153,8 @@ DS.Firebase.Adapter = DS.Adapter.extend({
     }.bind(this));
   },
 
-  _getRefForType: function(type, record) {
+  // some day this might do some sort of deeper find
+  _getRefForType: function(type) {
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
 
     return this.fb.child(name);
@@ -165,8 +175,10 @@ DS.Firebase.LiveModel = DS.Model.extend({
     var key;
     Ember.get(this.constructor, 'relationshipsByName')
       .forEach(function(rkey, relation) {
-        if (relation.kind == "belongsTo" && relation.parentType == this.constructor)
-          key = rkey;
+        if (relation.kind == "belongsTo" && relation.parentType == this.constructor) {
+          if (serializer.embeddedType(relation.type, name))
+            key = rkey;
+        }
       }.bind(this));
 
     if (key) {
@@ -191,6 +203,8 @@ DS.Firebase.LiveModel = DS.Model.extend({
     this.on("didLoad", function() {
       var ref = this.getRef();
 
+      // hasOwnProperty on attributes checks that the property is an attribute and not a
+      // child object (or array of ids of child objects)
       ref.on("child_added", function(prop) {
         if (this._data.attributes.hasOwnProperty(prop.name()) && !(this.get(prop.name()))) {
           this.set(prop.name(), prop.val());
@@ -198,7 +212,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
       }.bind(this));
 
       ref.on("child_changed", function(prop) {
-        if (prop.val() != this.get(prop.name())) {
+        if (this._data.attributes.hasOwnProperty(prop.name()) && prop.val() != this.get(prop.name())) {
           this.set(prop.name(), prop.val());
         }
       }.bind(this));
@@ -206,4 +220,3 @@ DS.Firebase.LiveModel = DS.Model.extend({
   },
 
 });
-
