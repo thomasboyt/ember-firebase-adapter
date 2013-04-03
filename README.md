@@ -35,8 +35,6 @@ Real time collections are only supported when they're "bound" to an entire resou
 
 For real time *models*, subclass `DS.Firebase.LiveModel`. Right now, this means that any changes to model properties on the server side will be updated on the model. Note that this only works for *defined attributes* - you can't just add arbitrary attributes that weren't defined on the model. 
 
-*(real time hasMany associations aren't implemented yet)*
-
 ### Associations
 
 In Firebase, all an "association" is is a child that has more children. Basically, Firebase is a big ol' tree. Either a value is a primative of some sort, and thus is a property on a model in Ember Data, or it has its own children, in which case it's a model of its own.
@@ -73,7 +71,11 @@ MyAdapter.map("App.Post", {
 
 Now, when you load a post, its comments will be loaded with it. Note that when you add or update a comment on a post, when you commit, Ember will actually save the *Post* resource back to the server. 
 
-But what if you want *relational* associations? I haven't tested it, yet, so I can't document it, but *theoretically* these should work like regular relational associations in Ember Data - if the post resource had a `comments` attribute that contained an array of post ids, the adapter *should* look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+But what if you want *relational* associations? If you don't specify `embedded`, then the relation will work like a standard relational REST resource - if the post resource had a `comments` attribute that contained an array of post ids, the adapter will look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+
+#### Live Associations
+
+These are partially-implemented, but be warned there are no tests for them, and they *heavily* abuse how Ember Data works. Expect oddities.
 
 ### Other Tips
 
