@@ -24,12 +24,10 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
 
   extractHasMany: function(parent, data, key) {
     var items = data[key];
-    var ids = [];
-    for (i in items) {
-      ids.push(items[i]);
-    }
-    
-    return ids;
+    if (items)
+      return Object.keys(items);
+    else
+      return [];
   },
 
   extractEmbeddedHasMany: function(loader, relationship, array, parent, prematerialized) { 
@@ -68,13 +66,13 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
       record.getRef().child(key).once("value", function(snapshot) {
         var ids = [];
         snapshot.forEach(function (childSnap) {
-          ids.push(childSnap.val());
+          ids.push(childSnap.name());
         });
 
         manyArray.forEach(function (childRecord) {
           childRecord.getRef(record.get("id"));     // hacky - forces id creation
           if (!ids.contains(childRecord.get("id")))
-            record.getRef().child(key).push(childRecord.get("id"));
+            record.getRef().child(key).child(childRecord.get("id")).set(true);
         });
       });
 
@@ -137,7 +135,6 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   },
 
   deleteRecords: function(store, type, records) {
-    console.log("deletin'");
     records.forEach(function(record) {
       var ref = record.getRef();
       ref.remove();
@@ -306,7 +303,6 @@ DS.Firebase.LiveModel = DS.Model.extend({
               rec._initLiveBindings();
             }.bind(this));
 
-            // TODO: This is probably leaky.
             ref.child(relationship.key).on("child_removed", function(snapshot) {
               var id = snapshot.name();
 
@@ -325,14 +321,13 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
           else {
             ref.child(relationship.key).on("child_added", function(snapshot) {
-              var id = snapshot.val();
+              var id = snapshot.name();
 
               var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
               if (ids.contains(id)) { return; }
 
               var mdl = relationship.type.find(id);
               
-              //todo: this may not be needed
               this.get(relationship.key).pushObject(mdl);
             }.bind(this));
           }
