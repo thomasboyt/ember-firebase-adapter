@@ -24,10 +24,11 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
 
   extractHasMany: function(parent, data, key) {
     var items = data[key];
-    if (items)
-      return Object.keys(items);
-    else
-      return [];
+    var ids = [];
+    for (var key in items) {
+      ids.push(key);
+    }
+    return ids;
   },
 
   extractEmbeddedHasMany: function(loader, relationship, array, parent, prematerialized) { 
@@ -193,8 +194,6 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
     var name = serializer.pluralize(serializer.rootForType(this.constructor));
 
-    var parentRef;
-
     // find belongsTo assocations
     var key;
     Ember.get(this.constructor, 'relationshipsByName')
@@ -205,12 +204,14 @@ DS.Firebase.LiveModel = DS.Model.extend({
         }
       }.bind(this));
 
+    var parentRef;
     if (key) {
       if (this.get(key)) {
         parentRef = this.get(key).getRef();
       }
       else {
-        // probably will be deleted
+        // *probably* means will be deleted
+        // watch out for anything bad that could trigger this.
         return this.get("_ref");
       }
     }
@@ -220,7 +221,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
     var ref;
     if (!this.get("id")) {
-      ref = parentRef.child(name).push();
+      ref = parentRef.child(name).push(); // generates new id 
       this.set("id", ref.name());
     }
     else {
@@ -236,17 +237,16 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
     this.on("didLoad", this._initLiveBindings.bind(this));
     this.on("didCreate", this._initLiveBindings.bind(this));
-    //this.on("didDelete", this._killLiveBindings.bind(this));
   },
 
   _initLiveBindings: function() {
-    if (!this.get("_liveBindingsEnabled")) {
-      this.set("_liveBindingsEnabled", true);
+    if (!this.get("_liveBindingsWereEnabled")) {    // sanity check
+      this.set("_liveBindingsWereEnabled", true);
       var ref = this.getRef();
 
+      // get all possible attributes that aren't relationships for check
       var attrs = Ember.get(this.constructor, "attributes");
 
-      // hasOwnProperty on attributes checks that the property is an attribute and not a
       // child object (or array of ids of child objects)
       ref.on("child_added", function(prop) {
         if (attrs.get(prop.name()) && (this.get(prop.name()) === null)) {
@@ -263,13 +263,13 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
       }.bind(this));
 
-      var resourceName = this.store.adapter.serializer.rootForType(this.constructor);
-
       this.get("constructor.relationshipsByName").forEach(function(name, relationship) {
-        if (relationship.kind == "hasMany") {
+        if (relationship.kind == "hasMany" && relationship.options.live === true) {
+          console.log("adding live relation for " + relationship.key);
+          var embedded = this.store.adapter.serializer.mappingOption(this.constructor, relationship.key, "embedded");
 
           // embedded relationship
-          if (relationship.options.embedded == "always") {
+          if (embedded == "always") {
             ref.child(relationship.key).on("child_added", function(snapshot) {
               var id = snapshot.name();
 
@@ -306,10 +306,9 @@ DS.Firebase.LiveModel = DS.Model.extend({
             ref.child(relationship.key).on("child_removed", function(snapshot) {
               var id = snapshot.name();
 
-              var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
-              if (!(ids.contains(id))) { return; }
-
               var rec = this.get(relationship.key).find(function(item) {return item.get("id") == id});
+              
+              if (!rec) return;
               
               rec.deleteRecord();
 
@@ -323,12 +322,25 @@ DS.Firebase.LiveModel = DS.Model.extend({
             ref.child(relationship.key).on("child_added", function(snapshot) {
               var id = snapshot.name();
 
-              var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
+              //var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
+              //if (ids.contains(id)) { return; }
+              var ids = this._data.hasMany[relationship.key];
               if (ids.contains(id)) { return; }
 
               var mdl = relationship.type.find(id);
               
               this.get(relationship.key).pushObject(mdl);
+            }.bind(this));
+
+            ref.child(relationship.key).on("child_removed", function(snapshot) {
+              var id = snapshot.name();
+
+              var rec = this.get(relationship.key).find(function(item) {return item.get("id") == id;});
+              if (!rec) return;
+
+              rec.deleteRecord();
+              rec.get('stateManager').send('willCommit');
+              rec.get('stateManager').send('didCommit');
             }.bind(this));
           }
         }
