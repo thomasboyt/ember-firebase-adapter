@@ -48,14 +48,14 @@ App.Post = DS.Model.create({
   title: DS.attr("string"),
   content: DS.attr("string"),
 
-  hasMany: "App.Comment",
+  comments: DS.hasMany("App.Comment", {embedded: 'always'}),
 });
 
 App.Comment = DS.Model.create({
   author: DS.attr("string"),
   content: DS.attr("string"),
 
-  belongsTo: "App.Post"
+  post: DS.belongsTo("App.Post")
 });
 ```
 
