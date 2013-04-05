@@ -22,6 +22,20 @@ DS.Firebase.Serializer = DS.JSONSerializer.extend({
     return rootedJSON;
   },
 
+  rootForType: function(type) {
+    var map = this.mappings.get(type)
+    if (map && map.resourceName) return map.resourceName;
+
+    var typeString = type.toString();
+
+    Ember.assert("Your model must not be anonymous. It was " + type, typeString.charAt(0) !== '(');
+
+    // use the last part of the name as the URL
+    var parts = typeString.split(".");
+    var name = parts[parts.length - 1];
+    return name.replace(/([A-Z])/g, '_$1').toLowerCase().slice(1);
+  },
+
   extractHasMany: function(parent, data, key) {
     var items = data[key];
     var ids = [];
@@ -322,10 +336,13 @@ DS.Firebase.LiveModel = DS.Model.extend({
             ref.child(relationship.key).on("child_added", function(snapshot) {
               var id = snapshot.name();
 
-              //var ids = this.get(relationship.key).map(function(item) {return item.get("id")});
-              //if (ids.contains(id)) { return; }
               var ids = this._data.hasMany[relationship.key];
-              if (ids.contains(id)) { return; }
+              var state = this.get("stateManager.currentState.name");
+
+              // below: the magic of ember data
+              if (state === "inFlight") {return;}   // if inFlight, id will not be pushed to hasMany yet.
+              if (ids == undefined)     {return;}   // this one is pretty baffling.
+              if (ids.contains(id))     {return;}   // this one is obvious, and in a perfect world would be the only one needed.
 
               var mdl = relationship.type.find(id);
               
