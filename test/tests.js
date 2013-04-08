@@ -3,195 +3,274 @@ QUnit.config.reorder = false;
 
 var fb = new Firebase("https://" + window.DB_NAME + ".firebaseio.com")
 
-var store, adapter, Person, Project, yehudaId
+var Person = DS.Firebase.LiveModel.extend({
+  firstName: DS.attr('string'),
+  lastName: DS.attr('string'),
+  twitter: DS.attr('string'),
+  github: DS.attr('string')
+});
 
-var yehudaFixture = {
-  firstName: "Yehuda",
-  lastName: "Katz",
-  twitter: "wycats",
-  github: null,
-}
+Person.toString = function() {
+  return "App.Person";
+};
 
-module('DS.Firebase.Adapter', {
+module('CRUD Operations', {
   setup: function() {
     // reset firebase
+    stop();
     fb.remove();
 
-    // People fixture tests lists
-    var persons = fb.child("persons");
-    var yehuda = persons.push(yehudaFixture);
-    yehuda.child("projects").push({name: "Rack::Offline"});
-    yehuda.child("projects").push({name: "emberjs"});
-    yehuda.child("projects").push({name: "ember-data"});
-    
-    yehudaId = yehuda.name();
-
-    var tom = persons.push({
-      firstName: "Tom",
-      lastName: "Dale",
-      twitter: "tomdale",
-    });
-
-    Person = DS.Firebase.LiveModel.extend({
-      firstName: DS.attr('string'),
-      lastName: DS.attr('string'),
-      twitter: DS.attr('string'),
-      github: DS.attr('string'),
-
-      projects: DS.hasMany('Project', {embedded: "always"})
-    });
-    Person.toString = function() {
-      return "App.Person";
-    };
-
-    Project = DS.Firebase.LiveModel.extend({
-      name: DS.attr('string'),
-      person: DS.belongsTo('Person')
-    });
-
-    Project.toString = function() {
-      return "App.Project";
-    };
-
-    var FBAdapter = DS.Firebase.Adapter;
-    FBAdapter.map(Person, {
-      projects: { embedded: 'always' }
-    });
-    adapter = FBAdapter.create({
+    this.adapter = DS.Firebase.Adapter.create({
       dbName: window.DB_NAME
     });
 
-    store = DS.Store.create({
-      adapter: adapter,
+    this.store = DS.Store.create({
+      adapter: this.adapter,
       revision: 12
     });
 
-    // goofy: seems to do some sort of forced-load that kills some weird conditions in the tests.
-    fb.child("persons").on("value", function() {});
+    start();
   },
+
+  populate: function() {
+    this.yehudaId = fb.child("persons").push({
+      firstName: "Yehuda",
+      lastName: "Katz",
+      twitter: "wycats"
+    }).name();
+    fb.child("persons").push({
+      firstName: "Tom",
+      lastName: "Dale",
+      twitter: "tomdale"
+    });
+  },
+
   teardown: function() {
     stop();
-    // wait until after embedded bindings are done
-    fb.child("persons").off("child_added");
+
+    // TODO: shouldn't destroying the adapter kill event listeners?
+    // (also, you'd think fb.off() would kill all listeners, but it doesn't.
+    // possible fb bug?)
+    this.adapter.fb.child("persons").off("child_added");
+    this.adapter.fb.child("persons").off("child_changed");
+    this.adapter.fb.child("persons").off("child_removed");
+
     Ember.run.sync();
     Ember.run(function() {
-      adapter.destroy();
-      store.destroy();
+      this.adapter.destroy();
+      this.store.destroy();
       start();
-    });
+    }.bind(this));
   }
 });
 
-test("find", function() {
-  stop();
-  var person = Person.find(yehudaId);
-  person.on("didLoad", function() {
-    deepEqual(person._data.attributes, yehudaFixture, "Record retrieved with find() has attributes equal to the stored record");
-    projects = person.get("projects");
-    equal(projects.objectAt(0).get("name"), "Rack::Offline", "Embedded records are loaded automatically.");
+asyncTest("Creating records", function() {
+  expect(1);
+
+  var fix = {
+    firstName: "Yehuda",
+    lastName: "Katz",
+    twitter: "wycats"
+  };
+  
+  var newPerson = Person.createRecord(fix);
+  this.store.commit();
+
+  fb.child("persons").child(newPerson.get("id")).once("value", function(snap) {
+    deepEqual(snap.val(), fix, "Creating a record initializes a new Firebase record with correctly-set properties.");
+    newPerson.disableBindings();
     start();
   });
 });
 
-test("findAll", function() {
-  stop();
+asyncTest("Finding records by id", function() {
+  expect(2);
+
+  this.populate();
+
+  var person = Person.find(this.yehudaId);
+  person.on("didLoad", function() {
+    equal(person.get("firstName"), "Yehuda", "Finding a record populates it with correct properties");
+    equal(person.get("id"), this.yehudaId, "Finding a record populates it with the correct ID");
+    person.disableBindings();
+    start();
+  }.bind(this));
+});
+
+asyncTest("Finding all records in a resource", function() {
+  expect(2);
+
+  this.populate();
+
   var people = Person.find();
 
   people.addObserver("length", function() {
     if (people.get("length") == 2) {
-      ok(true, "Found two entries");
-
-      equal(people.objectAt(0).get("firstName"), "Yehuda", "First entry contains data");
+      equal(people.objectAt(0).get("id"), this.yehudaId, "Records are loaded in order of their keys");
+      equal(people.objectAt(1).get("firstName"), "Tom", "All records are properly loaded");
+      people.forEach(function(person) {person.disableBindings()});
       start();
     }
-  });
+  }.bind(this))
 });
 
-test("live", function() {
-  stop();
-  var person = Person.find(yehudaId);
-  
-  person.on("didLoad", function() {
+asyncTest("Updating records", function() {
+  expect(1);
 
-    var ref = fb.child("persons").child(yehudaId).child("github");
-    ref.set("wycats");
+  this.populate();
 
-    // todo: there has to be some event to listen to instead of this
-    // (this isn't too bad though - not listening for some ajax event; the
-    // setter should be near-instant)
-    Ember.run.later(function() {
-      equal(person.get("github"), "wycats", "Model added github property when it was added on fb reference.");
-      start();
-    }, 200);
-  });
-});
+  var yehuda = Person.find(this.yehudaId);
 
-test("createRecord", function() {
-  stop();
-  var person = Person.createRecord({
-    firstName: "Ryan",
-    lastName: "Florence",
-    twitter: "ryanflorence",
-  });
+  yehuda.on("didLoad", function() {
+    yehuda.set("github", "wycats");
 
-  person.on("didCreate", function() {
-    ok(person.get("id"), "Person model has an id after being saved.");
-
-    var project = Project.createRecord({
-      name: "Ember LocalStorage Adapter",
-      person: person
-    });
-
-    person.on("didUpdate", function() {
-      fb.child("persons").child(person.get("id")).child("projects").child(project.get("id")).once("child_added", function(snap) {
-        var val = snap.val();
-        equal(val, project.get("name"),
-              "Created hasMany association on existing record.");
-        start();
-      }.bind(this));
-    }.bind(this));
-
-    store.commit();
-  });
-
-  store.commit();
-});
-
-test("updateRecord", function() {
-  stop();
-
-  var person = Person.find(yehudaId);
-  
-  person.on("didLoad", function() {
-    person.set("twitter", "yehuda_katz");
-    person.set("github", "wycats");
-
-    person.on("didUpdate", function() {
-      var ref = fb.child("persons").child(person.get("id")).child("twitter");
-      ref.on("value", function(snapshot) {
-        equal(snapshot.val(), "yehuda_katz", "Changes were synced back to firebase record");
+    yehuda.on("didUpdate", function() {
+      fb.child("persons").child(this.yehudaId).once("value", function(snap) {
+        equal(snap.val().github, "wycats", "Updating a model's property updates the back-end resource");
+        yehuda.disableBindings();
         start();
       });
+    }.bind(this));
+
+    this.store.commit();
+  }.bind(this));
+});
+
+asyncTest("Deleting records", function() {
+  expect(1);
+
+  this.populate();
+
+  var yehuda = Person.find(this.yehudaId);
+
+  yehuda.on("didLoad", function() {
+    yehuda.deleteRecord();
+    this.store.commit();
+
+    // TODO: for some reason, on(child_removed) is triggering for prior
+    // deletion from teardown before yehudaId.
+    var ignoredFirst = false;
+    fb.child("persons").on("child_removed", function(snap) {
+      if (!ignoredFirst) {
+        ignoredFirst = true;
+        return;
+      }
+      equal(snap.name(), this.yehudaId, "Deleting a record removes it from Firebase");
+      start();
+    }.bind(this));
+  }.bind(this));
+});
+
+module('Live property updates', {
+  setup: function() {
+    // reset firebase
+    fb.remove();
+
+    this.adapter = DS.Firebase.Adapter.create({
+      dbName: window.DB_NAME
     });
 
-    store.commit();
-  });
-});
+    this.store = DS.Store.create({
+      adapter: this.adapter,
+      revision: 12
+    });
+  },
 
-test("Live Relationships", function() {
-  stop();
+  populate: function() {
+    this.yehuda = Person.createRecord({
+      firstName: "Yehuda",
+      lastName: "Katz",
+      twitter: "wycats",
+    });
 
-  var person = Person.find(yehudaId);
-  
-  person.on("didLoad", function() {
-    setTimeout(function() {
-      fb.child("persons").child(yehudaId).child("projects").push({name: "minispade"});
-      Ember.run.sync();
-      equal(person.get("projects.length"), 4, "Adding a new record on the back-end adds it into the hasMany association");
+    this.store.commit();
+  },
+
+  teardown: function() {
+    stop();
+    this.adapter.fb.child("persons").off();
+    this.yehuda = null;
+
+    Ember.run.sync();
+    Ember.run(function() {
+      this.adapter.destroy();
+      this.store.destroy();
       start();
-    }, 200);
+    }.bind(this));
+  }
+});
+
+asyncTest("Properties can be added on the back-end", function() {
+  expect(1);
+
+  this.populate();
+
+  this.yehuda.one("didUpdate", function() {
+    equal(this.get("github"), "wycats", "A property added on Firebase will be added to the model");
+    this.disableBindings();
+    start();
   });
 
+  fb.child("persons").child(this.yehuda.get("id")).child("github").set("wycats");
 });
+
+asyncTest("Properties can be updated on the back-end", function() {
+  expect(1);
+
+  this.populate();
+
+  this.yehuda.one("didUpdate", function() {
+    equal(this.get("twitter"), "yehuda_katz", "A property changed on Firebase will be changed on the model");
+    this.disableBindings();
+    start();
+  });
+
+  // make sure model has synced back to the server before setting a direct property.
+  setTimeout(function() {
+    fb.child("persons").child(this.yehuda.get("id")).child("twitter").set("yehuda_katz");
+  }.bind(this), 250);
+});
+
+asyncTest("Properties can be removed on the back-end", function() {
+  expect(1)
+
+  this.populate();
+
+  this.yehuda.one("didUpdate", function() {
+    equal(this.get("twitter"), null, "A property removed on Firebase will be removed on the model");
+    this.disableBindings();
+    start();
+  });
+
+  setTimeout(function() {
+    fb.child("persons").child(this.yehuda.get("id")).child("twitter").remove();
+  }.bind(this), 250);
+});
+
+/*module('Embedded associations', {
+  setup: function() {
+  },
+  teardown: function() {
+  }
+});
+
+test("Embedded hasMany is loaded when its parent is read", function() {});
+test("When an embedded model is created, its parent is updated", function() {});
+test("When an embedded model is updated, its parent is updated", function() {});
+test("When an embedded model is deleted, its parent is updated", function() {});
+
+module("Embedded live associations", {
+  setup: function() {
+  },
+  teardown: function() {
+  }
+});
+
+module('Relational associations', {
+  setup: function() {
+  },
+  teardown: function() {
+  }
+});*/
 
 QUnit.start();

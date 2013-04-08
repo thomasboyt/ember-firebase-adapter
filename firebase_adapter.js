@@ -130,7 +130,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       var ref = record.getRef();
       var data = record.serialize();
 
-      // goofy. causes child_added callback to ignore local additions, 
+      // goofy. causes child_added callback on findAll to ignore local additions, 
       // preventing duplicate items
       this.localLock = true;
       ref.update(data);
@@ -201,7 +201,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
 
 });
 
-DS.Firebase.LiveModel = DS.Model.extend({
+DS.Firebase.Model = DS.Model.extend({
   getRef: function(collection) {
     var adapter = this.store.adapter;
     var serializer = adapter.serializer;
@@ -244,8 +244,10 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
     this.set("_ref", ref);
     return ref;
-  },
+  }
+});
 
+DS.Firebase.LiveModel = DS.Firebase.Model.extend({
   init: function() {
     this._super();
 
@@ -261,20 +263,27 @@ DS.Firebase.LiveModel = DS.Model.extend({
       // get all possible attributes that aren't relationships for check
       var attrs = Ember.get(this.constructor, "attributes");
 
-      // child object (or array of ids of child objects)
       ref.on("child_added", function(prop) {
-        if (attrs.get(prop.name()) && (this.get(prop.name()) === null)) {
-          console.log("child added " + prop.name());
-          this.set(prop.name(), prop.val());
+        if (attrs.get(prop.name()) && (this.get(prop.name()) === undefined)) {
+          this.store.didUpdateAttribute(this, prop.name(), prop.val());
+          this.trigger("didUpdate");
         }
       }.bind(this));
-
       ref.on("child_changed", function(prop) {
         if (attrs.get(prop.name()) && prop.val() !== this.get(prop.name())) {
-          console.log("child changed " + prop.name());
-          this.set(prop.name(), prop.val());
+          this.store.didUpdateAttribute(this, prop.name(), prop.val());
+          this.trigger("didUpdate");
         }
-
+      }.bind(this));
+      ref.on("child_removed", function(prop) {
+        // hacky: child_removed doesn't seem to be properly removed when .off() is
+        // used on the reference.
+        if (!this.disabled) {
+          if (attrs.get(prop.name()) && (this.get(prop.name()) !== undefined || this.get(prop.name() !== null))) {
+            this.store.didUpdateAttribute(this, prop.name(), null);
+            this.trigger("didUpdate");
+          }
+        }
       }.bind(this));
 
       this.get("constructor.relationshipsByName").forEach(function(name, relationship) {
@@ -341,7 +350,7 @@ DS.Firebase.LiveModel = DS.Model.extend({
 
               // below: the magic of ember data
               if (state === "inFlight") {return;}   // if inFlight, id will not be pushed to hasMany yet.
-              if (ids == undefined)     {return;}   // this one is pretty baffling.
+              if (ids === undefined)     {return;}   // this one is pretty baffling.
               if (ids.contains(id))     {return;}   // this one is obvious, and in a perfect world would be the only one needed.
 
               var mdl = relationship.type.find(id);
@@ -364,5 +373,18 @@ DS.Firebase.LiveModel = DS.Model.extend({
       }.bind(this))
     }
   },
+
+  deleteRecord: function() {
+    this.disableBindings();
+    this._super();
+  },
+
+  disableBindings: function() {
+    var ref = this.getRef();
+    this.disabled = true;
+    ref.off("child_added");
+    ref.off("child_changed");
+    ref.off("child_removed"); // Why don't you work ;_;
+  }
 
 });
