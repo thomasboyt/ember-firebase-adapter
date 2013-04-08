@@ -10,11 +10,9 @@ Honestly, it's a bit weird mixing standard Ember Data CRUD operations with real-
 
 This adapter can be used as a normal CRUD adapter, or to automatically add or remove models and properties as they are changed on your Firebase backend. This makes it shockingly powerful for combining persistence and live updates.
 
-## Usage
+## Getting Started
 
-Don't, yet. I mean the amount of stuff left to implement is *staggering*. But if you really want to...
-
-Create an Ember Data store:
+First, create an Ember Data store with a Firebase adapter:
 
 ```javascript
 App.store = DS.Store.create({
@@ -25,23 +23,45 @@ App.store = DS.Store.create({
 });
 ```
 
-This works out of the box as a standard CRUD store. 
+Next, create models that extend `DS.Firebase.Model` or `DS.Firebase.LiveModel`. This is *required* for the store to work!
 
-### Real Time
+### Static and Live Models
 
-For real time *collections* - that is, an array of your models at a particular resource that will automatically create and delete models based on changes on your Firebase reference - you'll want to use `YourModel.find()`. If you'd rather have static collections, just use `YourModel.find({})`.
+"Static" models are models that subclass `DS.Firebase.Model`. These models do not respond to server-side changes - that is, they act like any other Ember Data store, where you have to specifically query (via `find`) for changes.
 
-Real time collections are only supported when they're "bound" to an entire resource - that is, doing a find with any kind of query (including a blank one) will create a static collection.
+"Live" models are models that subclass `DS.Firebase.LiveModel`. These models are particularly powerful, as their properties will change as the server-side representation of them does. This makes it incredibly easy to create real-time applications without writing boilerplate code to listen for changes.
 
-For real time *models*, subclass `DS.Firebase.LiveModel`. Right now, this means that any changes to model properties on the server side will be updated on the model. Note that this only works for *defined attributes* - you can't just add arbitrary attributes that weren't defined on the model. 
+Note that only properties that are specified when defining a model will be listened for, meaning that you can't simply add arbitrary properties on the server-side. For example if you have the following:
 
-### Associations
+```javascript
 
-In Firebase, all an "association" is is a child that has more children. Basically, Firebase is a big ol' tree. Either a value is a primative of some sort, and thus is a property on a model in Ember Data, or it has its own children, in which case it's a model of its own.
+App.Person = DS.Firebase.LiveModel.extend({
+  firstName: DS.attr('string'),
+  lastName: DS.attr('string'),
+  twitter: DS.attr('string')
+});
 
-When you retrieve any kind of resource from Firebase that has child resources, you'll get those in the JSON payload. In Ember Data, these sorts of resources are called *embedded associations.* You need to use a little bit of extra boilerplate to enable an embedded association:
+var wycats = App.Person.createRecord({
+  firstName: "Yehuda",
+  lastName: "Katz"
+});
 
-In your models:
+App.store.commit();
+```
+
+If you were to then add a "twitter" property to this resource on Firebase, it would show up on the model. On the other hand, if you tried to add a "github" property to the resource, it wouldn't show up on the model, as it wasn't defined.
+
+### Live Collections
+
+For live collections - that is, an array of your models at a particular resource that will automatically add and delete models based on changes in your Firebase resource - you'll want to use `YourModel.find()` (which creates a `findAll` request in the adapter). Live collections work for both static and live models.
+
+Live collections are only supported when they're "bound" to an entire resource - that is, doing a find with any kind of query (including a blank one) will create a static collection. 
+
+### Relationships
+
+Firebase, being a hierarchial data store, is built around *embedded* relationships: querying a resource will include children. When you retrieve any kind of resource from Firebase that has child resources, you'll get those in the JSON payload. In Ember Data, these sorts of resources are called *embedded relationships.* You need to use a little bit of extra boilerplate to enable an embedded relationship.
+
+Let's say you had a simple scheme, where a *Post* resource has *Comments* stored under it. This would translate into these Ember models:
 
 ```javascript
 App.Post = DS.Model.create({
@@ -71,47 +91,21 @@ MyAdapter.map("App.Post", {
 
 Now, when you load a post, its comments will be loaded with it. Note that when you add or update a comment on a post, when you commit, Ember will actually save the *Post* resource back to the server. 
 
-But what if you want *relational* associations? If you don't specify `embedded`, then the relation will work like a standard relational REST resource - if the post resource had a `comments` attribute that contained an array of post ids, the adapter will look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`.
+But what if you want *relational* relationships? In these relationships,  If you don't specify `embedded`, then the relation will work like a standard relational REST resource - if the post resource had a `comments` attribute that contained an array of post ids, the adapter will look for them within `http://myfirebase.firebaseio.com/comments/<comment id>`. These work pretty much like you'd expect, but remember that they're not really what Firebase was built for - don't rely on them too much!
 
-#### Live Associations
+#### Live Relationships
 
 These are partially-implemented, but be warned there are no tests for them, and they *heavily* abuse how Ember Data works. Expect oddities.
 
 ### Other Tips
 
-You can access the Firebase object with `App.store.fb`, if you want to add your own hooks (for example, to [handle presence](https://www.firebase.com/docs/managing-presence.html) or [check authentication](https://www.firebase.com/docs/security-quickstart.html).
-
-[Priorities](https://www.firebase.com/docs/ordered-data.html) aren't implemented, since I haven't figured out a clear way to use them in Ember. If you have any recommendations, feel free to open an issue.
-
-## Implemented
-
-### CRUD
-
-* `find(id)`
-* `findAll()`
-* `createRecord()`
-* `updateRecord()`
-
-### Associations
-
-* hasMany/belongsTo
-
-### Live Updating
-
-#### Collections
-
-* `child_added`
-
-#### Models
-
-* `child_added`
-* `child_changed`
+You can access the Firebase object with `App.store.adapter.fb`, if you want to add your own hooks (for example, to [handle presence](https://www.firebase.com/docs/managing-presence.html) or [check authentication](https://www.firebase.com/docs/security-quickstart.html).
 
 ## Todo
 
-Literally just about everything.
+There's [a lot of work left to do](https://github.com/thomasboyt/ember-firebase-adapter/issues?state=open). Much of it is waiting for changes in Ember Data. For example, in Ember Data, there is essentially no (documented) way to return a "404/not found" on a find query, so that has yet to be implemented in this adapter, as well as a lot of other error handling.
 
-Like error handling. There is no error handling right now. Gah.
+Remember, since the Firebase object is exposed by the adapter, if you find yourself faced with an edge case that the adapter can't handle, you may be able to do it manually!
 
 ## Tests
 
