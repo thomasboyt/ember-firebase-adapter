@@ -18,18 +18,18 @@ module('CRUD Operations', {
   setup: function() {
     // reset firebase
     stop();
-    fb.remove();
+    fb.remove(function(error) {
+      this.adapter = DS.Firebase.Adapter.create({
+        dbName: window.DB_NAME
+      });
 
-    this.adapter = DS.Firebase.Adapter.create({
-      dbName: window.DB_NAME
-    });
+      this.store = DS.Store.create({
+        adapter: this.adapter,
+        revision: 12
+      });
 
-    this.store = DS.Store.create({
-      adapter: this.adapter,
-      revision: 12
-    });
-
-    start();
+      start();
+    }.bind(this));
   },
 
   populate: function() {
@@ -48,12 +48,7 @@ module('CRUD Operations', {
   teardown: function() {
     stop();
 
-    // TODO: shouldn't destroying the adapter kill event listeners?
-    // (also, you'd think fb.off() would kill all listeners, but it doesn't.
-    // possible fb bug?)
-    this.adapter.fb.child("persons").off("child_added");
-    this.adapter.fb.child("persons").off("child_changed");
-    this.adapter.fb.child("persons").off("child_removed");
+    this.adapter.fb.child("persons").off();
 
     Ember.run.sync();
     Ember.run(function() {
@@ -161,19 +156,117 @@ asyncTest("Deleting records", function() {
   }.bind(this));
 });
 
+module("Find all/live arrays", {
+  setup: function() {
+    stop();
+
+    fb.remove(function() {
+      this.adapter = DS.Firebase.Adapter.create({
+        dbName: window.DB_NAME
+      });
+
+      this.store = DS.Store.create({
+        adapter: this.adapter,
+        revision: 12
+      });
+
+      start();
+    }.bind(this));
+  },
+
+  populate: function() {
+    this.yehudaRef = fb.child("persons").push({
+      firstName: "Yehuda",
+      lastName: "Katz",
+      twitter: "wycats"
+    });
+    fb.child("persons").push({
+      firstName: "Tom",
+      lastName: "Dale",
+      twitter: "tomdale"
+    });
+    fb.child("persons").push({
+      firstName: "Ryan",
+      lastName: "Florence",
+      twitter: "ryanflorence"
+    });
+  },
+
+  teardown: function() {
+    stop();
+    this.adapter.fb.child("persons").off();
+
+    Ember.run.sync();
+    Ember.run(function() {
+      this.adapter.destroy();
+      this.store.destroy();
+      start();
+    }.bind(this));
+  }
+});
+
+asyncTest("Creating new item", function() {
+  expect(1)
+  this.populate();
+
+  var people = Person.find();
+
+  people.addObserver("length", function() {
+    if (people.get("length") == 3) {
+      fb.child("persons").push({
+        firstName: "Peter",
+        lastName: "Wagenet",
+        twitter: "wagenet"
+      });
+    }
+    if (people.get("length") == 4) {
+      equal(people.objectAt(3).get("firstName"), "Peter", "Adding a new person resource adds it to the findAll result");
+      people.forEach(function(person) {person.disableBindings()});
+      start();
+    }
+  }.bind(this))
+});
+
+asyncTest("Removing item", function() {
+  expect(1);
+  this.populate();
+
+  var people = Person.find();
+
+  people.addObserver("length", function() {
+    if (people.get("length") == 3) {
+      people.removeObserver("length");
+
+      people.addObserver("length", function() {
+        if (people.get("length") == 2) {
+          people.removeObserver("length");
+          ok(people.objectAt(0).get("firstName"), "Tom", "Removing a resource on the server removes it from the findAll array");
+          people.forEach(function(person) {person.disableBindings()});
+          start();
+        }
+      });
+
+      this.yehudaRef.remove();
+    }
+  }.bind(this));
+});
+
 module('Live property updates', {
   setup: function() {
-    // reset firebase
-    fb.remove();
+    stop();
 
-    this.adapter = DS.Firebase.Adapter.create({
-      dbName: window.DB_NAME
-    });
+    fb.remove(function() {
+      this.adapter = DS.Firebase.Adapter.create({
+        dbName: window.DB_NAME
+      });
 
-    this.store = DS.Store.create({
-      adapter: this.adapter,
-      revision: 12
-    });
+      this.store = DS.Store.create({
+        adapter: this.adapter,
+        revision: 12
+      });
+
+      start();
+    }.bind(this));
   },
 
   populate: function() {

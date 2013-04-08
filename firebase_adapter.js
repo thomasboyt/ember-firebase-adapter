@@ -111,6 +111,7 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   serializer: DS.Firebase.Serializer.create(),
 
   localLock: false,
+  _listenRefs: [],
 
   fb: undefined,
 
@@ -152,7 +153,9 @@ DS.Firebase.Adapter = DS.Adapter.extend({
   deleteRecords: function(store, type, records) {
     records.forEach(function(record) {
       var ref = record.getRef();
+      this.localLock = true;
       ref.remove();
+      this.localLock = false;
     });
     store.didSaveRecords(records);
   },
@@ -181,11 +184,23 @@ DS.Firebase.Adapter = DS.Adapter.extend({
       
       this.didFindAll(store, type, results);
 
+      this._listenRefs.push(ref);
+
       ref.on("child_added", function(child) {
         if (!this.localLock) {
           var data = child.val()
           data.id = child.name();
           this.didFindMany(store, type, [data]);
+        }
+      }.bind(this));
+
+      ref.on("child_removed", function(child) {
+        if (!this.localLock) {
+          var id = child.name();
+          var rec = store.findById(type, id);
+          if (rec) {
+            rec.deleteRecord();
+          }
         }
       }.bind(this));
 
@@ -197,6 +212,15 @@ DS.Firebase.Adapter = DS.Adapter.extend({
     var name = this.serializer.pluralize(this.serializer.rootForType(type));
 
     return this.fb.child(name);
+  },
+
+  destroy: function() {
+    this._listenRefs.forEach(function(ref) {
+      ref.off("child_added");
+      ref.off("child_removed");
+    });
+    this._listenRefs.clear();
+    this._super();
   }
 
 });
@@ -278,6 +302,7 @@ DS.Firebase.LiveModel = DS.Firebase.Model.extend({
       ref.on("child_removed", function(prop) {
         // hacky: child_removed doesn't seem to be properly removed when .off() is
         // used on the reference.
+        
         if (!this.disabled) {
           if (attrs.get(prop.name()) && (this.get(prop.name()) !== undefined || this.get(prop.name() !== null))) {
             this.store.didUpdateAttribute(this, prop.name(), null);
