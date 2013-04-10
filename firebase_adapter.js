@@ -5,7 +5,7 @@ DS.Firebase = {};
 
 DS.Firebase.Serializer = DS.JSONSerializer.extend({
 
-  // thanks @rpflorence's localStorage adapter
+  // thanks @rpflorence's localStorage adapter 
   extract: function(loader, json, type, record) {
     this._super(loader, this.rootJSON(json, type), type, record);
   },
@@ -275,6 +275,7 @@ DS.Firebase.LiveModel = DS.Firebase.Model.extend({
   init: function() {
     this._super();
 
+    // a model will fire one of these two events when created
     this.on("didLoad", this._initLiveBindings.bind(this));
     this.on("didCreate", this._initLiveBindings.bind(this));
   },
@@ -301,9 +302,9 @@ DS.Firebase.LiveModel = DS.Firebase.Model.extend({
       }.bind(this));
       ref.on("child_removed", function(prop) {
         // hacky: child_removed doesn't seem to be properly removed when .off() is
-        // used on the reference.
-        
-        if (!this.disabled) {
+        // used on the reference, which can make bad things happen if the resource
+        // is removed and the model no longer exists!
+        if (!this.bindingsDisabled) {
           if (attrs.get(prop.name()) && (this.get(prop.name()) !== undefined || this.get(prop.name() !== null))) {
             this.store.didUpdateAttribute(this, prop.name(), null);
             this.trigger("didUpdate");
@@ -406,7 +407,7 @@ DS.Firebase.LiveModel = DS.Firebase.Model.extend({
 
   disableBindings: function() {
     var ref = this.getRef();
-    this.disabled = true;
+    this.bindingsDisabled = true;
     ref.off("child_added");
     ref.off("child_changed");
     ref.off("child_removed"); // Why don't you work ;_;

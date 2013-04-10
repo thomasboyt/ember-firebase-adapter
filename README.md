@@ -12,7 +12,9 @@ This adapter can be used as a normal CRUD adapter, or to automatically add or re
 
 ## Getting Started
 
-First, create an Ember Data store with a Firebase adapter:
+First, you'll want to make sure you're using the very current versions of Ember and Ember Data in the `vendor/` directory. You can actually use a more current version of Ember if you'd like, but **the current master of Ember Data is lacking a needed patch that is in this repo's copy of it**, so this adapter will break without that version!
+
+Then, in your app, create an Ember Data store with a Firebase adapter:
 
 ```javascript
 App.store = DS.Store.create({
