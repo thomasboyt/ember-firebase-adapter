@@ -101,7 +101,7 @@ These are partially-implemented, but be warned there are no tests for them, and 
 
 ### Other Tips
 
-You can access the Firebase object with `App.store.adapter.fb`, if you want to add your own hooks (for example, to [handle presence](https://www.firebase.com/docs/managing-presence.html) or [check authentication](https://www.firebase.com/docs/security-quickstart.html).
+You can access the Firebase object with `App.store.adapter.fb`, if you want to add your own hooks (for example, to [handle presence](https://www.firebase.com/docs/managing-presence.html) or [check authentication](https://www.firebase.com/docs/security-quickstart.html)).
 
 ## Todo
 
@@ -109,7 +109,13 @@ There's [a lot of work left to do](https://github.com/thomasboyt/ember-firebase-
 
 Remember, since the Firebase object is exposed by the adapter, if you find yourself faced with an edge case that the adapter can't handle, you may be able to do it manually!
 
-## Tests
+## Building
+
+This project is built with [Grunt](http://gruntjs.com/). If you'd like to build it yourself, you'll want to clone the repo, `npm install .` to load dependencies into `node_modules/`, and then build it with `grunt build`. Running `grunt dist` will output a minified version in the `dist/` folder.
+
+Note that this project uses [Square's ES6 Module Transplier](https://github.com/square/es6-module-transpiler) to compile scripts that use the ECMAScript 6 module script syntax to AMD modules, then loads them with [Almond](https://github.com/jrburke/almond) in the final output. Almond minifies down to like <1kb, though, so it's not exactly a huge overhead to worry about.
+
+## Testing
 
 Create a Firebase DB for testing, then create a `tests/firebase_db.js` file like so:
 
@@ -117,4 +123,4 @@ Create a Firebase DB for testing, then create a `tests/firebase_db.js` file like
 window.DB_NAME = "your_db_subdomain_here";
 ```
 
-Throw up a static server in the root directory of this repo, and navigate your browser to `test/` to run tests.
+Create a static server with "grunt test" and navigate to `http://localhost:9001/test/` to run the tests.
