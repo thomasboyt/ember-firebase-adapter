@@ -1,1 +1,3 @@
 test/firebase_db.js
+node_modules/
+tmp/
