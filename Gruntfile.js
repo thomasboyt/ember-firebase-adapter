@@ -24,6 +24,7 @@ module.exports = function(grunt) {
         
         var compiler = new Compiler(grunt.file.read(path), name, options);
 
+        var format;
         switch (options.format) {
           case 'amd':
             format = compiler.toAMD;
