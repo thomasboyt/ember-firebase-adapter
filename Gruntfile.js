@@ -4,6 +4,7 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-contrib-watch');
+  grunt.loadNpmTasks('grunt-contrib-concat');
 
   var nameFor = function(root, path) {
     var re = new RegExp("^" + root + "(.*).js$");
@@ -86,6 +87,12 @@ module.exports = function(grunt) {
         }
       }
     },
+    concat: {
+      tests: {
+        src: ["test/init.js", "test/tests/*.js"],
+        dest: "tmp/tests.js"
+      }
+    },
     connect: {
       server: {
         options: {
@@ -98,6 +105,10 @@ module.exports = function(grunt) {
       rebuild: {
         files: ["lib/**/*.js"],
         tasks: ["build"]
+      },
+      test: {
+        files: ["test/**/*.js"],
+        tasks: ["concat:tests"]
       }
     }
 
@@ -106,7 +117,7 @@ module.exports = function(grunt) {
   this.registerTask("build", ["transpile:amd", "requirejs:wrapper"]);
   this.registerTask("dist", ["build", "copy:dist", "uglify:dist"]);
   
-  this.registerTask("test", ["build", "connect:server", "watch:rebuild"]);
+  this.registerTask("test", ["build", "concat:tests", "connect:server", "watch"]);
 
   this.registerTask("default", "build");
 };
