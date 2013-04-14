@@ -93,7 +93,6 @@ asyncTest("When an embedded model is created, its parent is updated", function()
     });
 
     user.one("didUpdate", function() {
-      console.log("didUpdate");
       fb.child("users").child(this.id).child("screenNames").child("email").on("value", function(snap) {
         equal(snap.val().name, "me@thomasboyt.com", "Creating an embedded model creates a new Firebase resource");
         equal(snap.val().user, this.id, "Creating an embedded model with a belongsTo sets a parent id property");

@@ -1,4 +1,4 @@
-module("Find all/live arrays", {
+module("Querying resources", {
   setup: function() {
     stop();
 
@@ -22,12 +22,12 @@ module("Find all/live arrays", {
       lastName: "Katz",
       twitter: "wycats"
     });
-    fb.child("persons").push({
+    this.tomRef = fb.child("persons").push({
       firstName: "Tom",
       lastName: "Dale",
       twitter: "tomdale"
     });
-    fb.child("persons").push({
+    this.ryanRef = fb.child("persons").push({
       firstName: "Ryan",
       lastName: "Florence",
       twitter: "ryanflorence"
@@ -47,7 +47,7 @@ module("Find all/live arrays", {
   }
 });
 
-asyncTest("Creating new item", function() {
+asyncTest("Live queries: Creating new server-side item", function() {
   expect(1)
   this.populate();
 
@@ -68,7 +68,7 @@ asyncTest("Creating new item", function() {
   }.bind(this))
 });
 
-asyncTest("Removing item", function() {
+asyncTest("Live queries: Removing server-side item", function() {
   expect(1);
   this.populate();
 
@@ -81,7 +81,7 @@ asyncTest("Removing item", function() {
       people.addObserver("length", function() {
         if (people.get("length") == 2) {
           people.removeObserver("length");
-          ok(people.objectAt(0).get("firstName"), "Tom", "Removing a resource on the server removes it from the findAll array");
+          equal(people.objectAt(0).get("firstName"), "Tom", "Removing a resource on the server removes it from the findAll array");
           start();
         }
       });
@@ -91,4 +91,27 @@ asyncTest("Removing item", function() {
   }.bind(this));
 });
 
+asyncTest("Static queries with findQuery", function() {
+  expect(1);
+  this.populate();
 
+  var people = Person.find({live: false});
+
+  people.on("didLoad", function() {
+    deepEqual(this.store.adapter._listenRefs, [], "findQuery() with {live:false} does not add a listened-to reference.");
+    start();
+  }.bind(this));
+});
+
+asyncTest("Static limited queries with findQuery", function() {
+  expect(2);
+  this.populate();
+
+  var people = Person.find({live: false, limit: 2});
+
+  people.on("didLoad", function() {
+    equal(people.get("length"), 2, "Limiting a query with {limit: n} results in n objects");
+    equal(people.objectAt(0).get("id"), this.tomRef.name(), "Limiting is done from the *last* n objects");
+    start();
+  }.bind(this));
+});
