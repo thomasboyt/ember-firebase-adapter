@@ -48,24 +48,24 @@ module("Querying resources", {
 });
 
 asyncTest("Live queries: Creating new server-side item", function() {
-  expect(1)
+  expect(1);
   this.populate();
 
   var people = Person.find();
 
   people.addObserver("length", function() {
-    if (people.get("length") == 3) {
+    if (people.get("length") === 3) {
       fb.child("persons").push({
         firstName: "Peter",
         lastName: "Wagenet",
         twitter: "wagenet"
       });
     }
-    if (people.get("length") == 4) {
+    if (people.get("length") === 4) {
       equal(people.objectAt(3).get("firstName"), "Peter", "Adding a new person resource adds it to the findAll result");
       start();
     }
-  }.bind(this))
+  }.bind(this));
 });
 
 asyncTest("Live queries: Removing server-side item", function() {
@@ -75,11 +75,11 @@ asyncTest("Live queries: Removing server-side item", function() {
   var people = Person.find();
 
   people.addObserver("length", function() {
-    if (people.get("length") == 3) {
+    if (people.get("length") === 3) {
       people.removeObserver("length");
 
       people.addObserver("length", function() {
-        if (people.get("length") == 2) {
+        if (people.get("length") === 2) {
           people.removeObserver("length");
           equal(people.objectAt(0).get("firstName"), "Tom", "Removing a resource on the server removes it from the findAll array");
           start();

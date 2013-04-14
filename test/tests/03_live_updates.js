@@ -81,7 +81,7 @@ asyncTest("Properties can be updated on the back-end", function() {
 });
 
 asyncTest("Properties can be removed on the back-end", function() {
-  expect(1)
+  expect(1);
 
   this.populate();
 

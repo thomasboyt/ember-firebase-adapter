@@ -93,12 +93,12 @@ asyncTest("Finding all records in a resource", function() {
   var people = Person.find();
 
   people.addObserver("length", function() {
-    if (people.get("length") == 2) {
+    if (people.get("length") === 2) {
       equal(people.objectAt(0).get("id"), this.yehudaId, "Records are loaded in order of their keys");
       equal(people.objectAt(1).get("firstName"), "Tom", "All records are properly loaded");
       start();
     }
-  }.bind(this))
+  }.bind(this));
 });
 
 asyncTest("Updating records", function() {
@@ -137,7 +137,7 @@ asyncTest("Deleting records", function() {
     // deletion from teardown before yehudaId.
     var ignoredFirst = false;
     fb.child("persons").on("child_removed", function(snap) {
-      if (snap.name() == this.yehudaId) {
+      if (snap.name() === this.yehudaId) {
         ok(true, "Deleting a record removes it from Firebase");
         start();
       }

@@ -5,6 +5,7 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-contrib-concat');
+  grunt.loadNpmTasks('grunt-contrib-jshint');
 
   var nameFor = function(root, path) {
     var re = new RegExp("^" + root + "(.*).js$");
@@ -49,7 +50,18 @@ module.exports = function(grunt) {
     });
   });
 
+  // fyi, jshint never actually passes because of the use of import/export
   grunt.initConfig({
+    jshint: {
+      all: [
+        'Gruntfile.js',
+        'lib/firebase/*.js',
+        'test/**/*.js',
+      ],
+      options: {
+        jshintrc: '.jshintrc'
+      }
+    },
     transpile: {
       amd: {
         options: {
