@@ -28,7 +28,7 @@ Note that this project uses [Square's ES6 Module Transplier](https://github.com/
 
 ## Testing
 
-Create a Firebase DB for testing, then create a `tests/firebase_db.js` file like so:
+Create a Firebase DB for testing, then create a `test/firebase_db.js` file like so:
 
 ```javascript
 window.DB_NAME = "your_db_subdomain_here";
