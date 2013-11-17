@@ -1,3 +1,5 @@
+**This project has been deprecated.** If you're looking for Ember + Firebase integration, check out the official [EmberFire](https://github.com/firebase/emberFire) bindings.
+
 ## What? 
 
 This is a [Firebase](https://www.firebase.com/) adapter for [Ember Data](https://github.com/emberjs/data).
